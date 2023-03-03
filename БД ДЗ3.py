@@ -1,4 +1,4 @@
-import psycopg2
+mport psycopg2
 from pprint import pprint
 
 def create_db(cur):
