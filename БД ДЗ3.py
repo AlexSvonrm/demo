@@ -1,24 +1,24 @@
-mport psycopg2
+import psycopg2
 from pprint import pprint
 
-def create_db(cur):
+def create_db(conn):
     cur.execute("""
     CREATE TABLE IF NOT EXISTS clients(
         id SERIAL PRIMARY KEY NOT NULL,
         first_name VARCHAR(80) NOT NULL,
         last_name VARCHAR(80) NOT NULL,
-        email VARCHAR(80) NOT NULL
+        email VARCHAR(80) UNIQUE
         );
     """)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS phonenumbers(
         phone VARCHAR(80) PRIMARY KEY,
-        client_id INTEGER REFERENCES clients(id)
+        client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE
         );
     """)
     return
 
-def add_client(cur, first_name=None, last_name=None, email=None, phone=None):
+def add_client(conn, first_name=None, last_name=None, email=None, phone=None):
     cur.execute("""
         INSERT INTO clients(first_name, last_name, email)
         VALUES (%s, %s, %s)
@@ -35,18 +35,70 @@ def add_client(cur, first_name=None, last_name=None, email=None, phone=None):
         add_phone(cur, id, phone)
         return id
 
-def add_phone(cur, client_id, phone):
-    cur.execute("""
-        INSERT INTO phonenumbers(phone, client_id)
-        VALUES (%s, %s)
-        """, (phone, client_id))
-    return client_id
+def add_client(conn, first_name, last_name, email, phone=None):
+    with conn.cursor() as curs:
+        if find_client(conn, email=email): #Ищем клиента с таким имейлом
+            return print("клиент с таким имейлом уже есть")
+        curs.execute(
+            """
+            INSERT INTO clients (first_name, last_name, email) --В таблицу клиентов втавляем имя, фамилию и почту
+            VALUES (%s, %s, %s) RETURNING client_id; --Возвращаем поле, которое содержит идентификационный номер
+            """, 
+            (first_name, last_name, email,) #Передаем имя, фамилию и имейл
+        )
+        if ...: #Проверяем передали ли телефон при добавлении контакта
+            ... = curs.fetchone()[0] #получаем из запроса идентификационный номер и сохраняем в переменную
+            ... = ... #Вызываем функцию добавления номера телефона и рузультат сохраняем в переменную
+            if ... == '...': #Проверяем вернулось ли сообщение, которое равно тому, что сообщает о существовании номера
+                conn.rollback() #Отменяем создание клиента
+                return print("Сообщаем что добавить невозможно")
+         conn.commit() #Делаем коммит у соединения
+    return print("Сообщаем что клиент добавлен") 
+
+
+def add_phone(conn, client_id: int, phone: int):
+    with conn.cursor() as curs:
+        curs.execute(
+            """
+            SELECT phone from clients --Получаем телефон из таблицы телефонов
+            WHERE phone = %s; --Где телефон равен %s
+            """,
+            (phone) #Передаем номер телефона
+        )
+        if curs.fetchone(): #Проверяем вернулась ли не пустая коллекция
+            return print("такой номер есть") 
+	curs.execute(
+            """
+            SELECT client_id from clients --Получаем клиента из таблицы клиентов
+            WHERE client_id = %s; --Где id клиента равен %s
+            """,
+            (client_id) #Передаем id клиента
+        )
+        if not curs.fetchone(): #Проверяем вернулась ли пустая коллекция
+            return "Соообщаем что такого клиента нет" 
+        curs.execute(
+            """
+            INSERT INTO phonenumbers (phone, client_id) 
+            VALUES (%s, %s);
+            """,
+            (phone, client_id)
+        )
+        conn.commit() #Подтверждаем изменения
+    return print("сообщение об успехе" ) 
+
+
+# def add_phone(cur, client_id, phone):
+#     cur.execute("""
+#         INSERT INTO phonenumbers(phone, client_id)
+#         VALUES (%s, %s)
+#         """, (phone, client_id))
+#     return client_id
     
-def change_client(cur, client_id, first_name=None, last_name=None, email=None):
+def change_client(conn, client_id, first_name=None, last_name=None, email=None):
     cur.execute("""
         SELECT * from clients
         WHERE id = %s
-        """, (id, ))
+        """, (client_id, ))
     info = cur.fetchone()
     if first_name is None:
         first_name = info[1]
@@ -58,30 +110,30 @@ def change_client(cur, client_id, first_name=None, last_name=None, email=None):
         UPDATE clients
         SET first_name = %s, last_name = %s, email =%s 
         where id = %s
-        """, (first_name, last_name, email, id))
-    return id
+        """, (first_name, last_name, email, client_id))
+    return client_id
 
 
-def delete_phone(cur, client_id, phone):
+def delete_phone(conn, client_id, phone):
     cur.execute("""
         DELETE FROM phonenumbers 
-        WHERE client_id=%s AND phone = %s
+        WHERE phone = %s
         """, (phone, ))
     return phone
 
 
-def delete_client(cur, client_id):
-    cur.execute("""
-        DELETE FROM phonenumbers
-        WHERE client_id = %s
-        """, (client_id, ))
+def delete_client(conn, client_id):
+    # cur.execute("""
+    #     DELETE FROM phonenumbers
+    #     WHERE client_id = %s
+    #     """, (client_id, ))
     cur.execute("""
         DELETE FROM clients 
         WHERE id = %s
        """, (client_id,))
     return client_id
 
-def find_client(cur, first_name=None, last_name=None, email=None, phone=None):
+def find_client(conn, first_name=None, last_name=None, email=None, phone=None):
     if first_name is None:
         first_name = '%'
     else:
@@ -110,25 +162,25 @@ def find_client(cur, first_name=None, last_name=None, email=None, phone=None):
             """, (first_name, last_name, email, phone))
     return cur.fetchall()
 
-def delete_db(cur):
+def delete_db(conn):
     cur.execute("""
         DROP TABLE clients, phonenumbers CASCADE;
         """)
   
     
-with psycopg2.connect(database = "clients_db", user= "postgres", password= "postgres") as conn:
-    with conn.cursor() as cur:
-        create_db(cur)
-        add_client(cur, "Иван", "Иванов", "dfg@.com")
-        add_client(cur, "Петр", "Петров", "ggff@.com")
-        add_client(cur, "Денис", "Денисов", "jaxccxx@.com")
-        add_client(cur, "Игорь", "Игорев", "vxcv@.com")
-        add_client(cur, "Коля", "Колев", "xvcvcx@.com")
-        add_phone(cur, 1, "1-111-11-11")
-        add_phone(cur, 2, "2-222-22-22")
-        add_phone(cur, 3, "3-333-33-33")
-        add_phone(cur, 4, "4-444-44-44")
-        add_phone(cur, 5, "5-555-55-55")
+# with psycopg2.connect(database = "clients_db", user= "postgres", password= "postgres") as conn:
+#     with conn.cursor() as cur:
+        create_db(conn)
+        add_client(conn, "Иван", "Иванов", "dfg@.com")
+        add_client(conn, "Петр", "Петров", "ggff@.com")
+        add_client(conn, "Денис", "Денисов", "jaxccxx@.com")
+        add_client(conn, "Игорь", "Игорев", "vxcv@.com")
+        add_client(conn, "Коля", "Колев", "xvcvcx@.com")
+        add_phone(conn, 1, "1-111-11-11")
+        add_phone(conn, 2, "2-222-22-22")
+        add_phone(conn, 3, "3-333-33-33")
+        add_phone(conn, 4, "4-444-44-44")
+        add_phone(conn, 5, "5-555-55-55")
         change_client()
         delete_phone()
         delete_client()
