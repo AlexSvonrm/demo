@@ -1,8 +1,7 @@
 import psycopg2
-from pprint import pprint
 
 def create_db(conn):
-    with conn.cursor() as curs:
+    with conn.cursor() as cur:
         cur.execute("""
         CREATE TABLE IF NOT EXISTS clients(
             id SERIAL PRIMARY KEY NOT NULL,
@@ -38,10 +37,10 @@ def create_db(conn):
 #         return id
 
 def add_client(conn, first_name, last_name, email, phone=None):
-    with conn.cursor() as curs:
+    with conn.cursor() as cur:
         if find_client(conn, email=email): #Ищем клиента с таким имейлом
             return print("клиент с таким имейлом уже есть")
-        curs.execute(
+        cur.execute(
             """
             INSERT INTO clients (first_name, last_name, email) --В таблицу клиентов втавляем имя, фамилию и почту
             VALUES (%s, %s, %s) RETURNING client_id; --Возвращаем поле, которое содержит идентификационный номер
@@ -49,7 +48,7 @@ def add_client(conn, first_name, last_name, email, phone=None):
             (first_name, last_name, email,) #Передаем имя, фамилию и имейл
         )
         if phone is not None: #Проверяем передали ли телефон при добавлении контакта
-            newclient = curs.fetchone()[0] #получаем из запроса идентификационный номер и сохраняем в переменную
+            newclient = cur.fetchone()[0] #получаем из запроса идентификационный номер и сохраняем в переменную
             newphone = add_phone #Вызываем функцию добавления номера телефона и рузультат сохраняем в переменную
             if newphone == 'такой номер есть': #Проверяем вернулось ли сообщение, которое равно тому, что сообщает о существовании номера
                 conn.rollback() #Отменяем создание клиента
@@ -59,26 +58,26 @@ def add_client(conn, first_name, last_name, email, phone=None):
 
 
 def add_phone(conn, client_id: int, phone: int):
-    with conn.cursor() as curs:
-        curs.execute(
+    with conn.cursor() as cur:
+        cur.execute(
             """
             SELECT phone from clients --Получаем телефон из таблицы телефонов
             WHERE phone = %s; --Где телефон равен %s
             """,
             (phone) #Передаем номер телефона
         )
-        if curs.fetchone(): #Проверяем вернулась ли не пустая коллекция
+        if cur.fetchone(): #Проверяем вернулась ли не пустая коллекция
             return print("такой номер есть") 
-	curs.execute(
+        cur.execute(
             """
             SELECT client_id from clients --Получаем клиента из таблицы клиентов
             WHERE client_id = %s; --Где id клиента равен %s
             """,
             (client_id) #Передаем id клиента
         )
-        if not curs.fetchone(): #Проверяем вернулась ли пустая коллекция
+        if not cur.fetchone(): #Проверяем вернулась ли пустая коллекция
             return "Соообщаем что такого клиента нет" 
-        curs.execute(
+        cur.execute(
             """
             INSERT INTO phonenumbers (phone, client_id) 
             VALUES (%s, %s);
@@ -97,7 +96,7 @@ def add_phone(conn, client_id: int, phone: int):
 #     return client_id
     
 def change_client(conn, client_id, first_name=None, last_name=None, email=None):
-    with conn.cursor() as curs:
+    with conn.cursor() as cur:
         cur.execute("""
             SELECT * from clients
             WHERE id = %s
@@ -119,7 +118,7 @@ def change_client(conn, client_id, first_name=None, last_name=None, email=None):
 
 
 def delete_phone(conn, client_id, phone):
-    with conn.cursor() as curs:
+    with conn.cursor() as cur:
         cur.execute("""
             DELETE FROM phonenumbers 
             WHERE phone = %s
@@ -128,7 +127,7 @@ def delete_phone(conn, client_id, phone):
 
 
 def delete_client(conn, client_id):
-    with conn.cursor() as curs:
+    with conn.cursor() as cur:
         # cur.execute("""
         #     DELETE FROM phonenumbers
         #     WHERE client_id = %s
@@ -140,7 +139,7 @@ def delete_client(conn, client_id):
     return client_id
 
 def find_client(conn, first_name=None, last_name=None, email=None, phone=None):
-    with conn.cursor() as curs:
+    with conn.cursor() as cur:
         if first_name is None:
             first_name = '%'
         else:
