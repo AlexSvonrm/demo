@@ -14,23 +14,29 @@ LEFT JOIN album_List ON Track_List.album_id = album_List.id
 GROUP BY album_List.album_name;
 
 --все исполнители, которые не выпустили альбомы в 2020 году
-SELECT DISTINCT a.name FROM artist_list AS a
-LEFT JOIN artist_album AS aa ON a.id = aa.id
-LEFT JOIN album_List AS am ON aa.id = am.id
-WHERE release_date <> 2020;
+SELECT Name FROM artist_list
+WHERE Name NOT IN ( 
+    SELECT Name FROM artist_list 
+    JOIN artist_album ON artist_list.id = artist_album.artist_id 
+    JOIN album_List ON album_List.id = artist_album.album_id 
+    WHERE release_date = 2020 );
 
 --названия сборников, в которых присутствует конкретный исполнитель (выберите сами)
-SELECT DISTINCT collection_name FROM collection_List AS c
-LEFT JOIN artist_list AS a ON c.id = a.id
-WHERE a.Name = 'artist_3';
+SELECT DISTINCT collection_name FROM collection_List
+JOIN collection_track ON collection_track.collection_id = collection_List.id
+JOIN Track_List ON collection_track.track_id = Track_List.id
+JOIN album_List ON Track_List.album_id = album_List.id
+JOIN artist_album ON artist_album.album_id = album_List.id
+JOIN artist_list ON artist_album.artist_id = artist_list.id
+WHERE artist_list.Name = 'artist_3';
 
 --название альбомов, в которых присутствуют исполнители более 1 жанра
-SELECT DISTINCT album_name FROM album_List AS a
-LEFT JOIN artist_album AS aa ON a.id = aa.id
-LEFT JOIN artist_in_genre AS ag ON aa.id = ag.artist_id
---LEFT JOIN artist_list ON aa.id = Name
+SELECT DISTINCT album_name FROM album_List
+JOIN artist_album ON album_List.id = artist_album.album_id
+JOIN artist_list ON artist_list.id = artist_album.artist_id  
+JOIN artist_in_genre ON artist_list.id = artist_in_genre.artist_id
 GROUP BY album_name
-HAVING COUNT(ag.artist_id) > 1;
+HAVING COUNT(artist_in_genre.genre_id) > 1;
 
 --наименование треков, которые не входят в сборники
 SELECT track_name FROM Track_List AS t
@@ -54,5 +60,6 @@ HAVING COUNT(*) =
     GROUP BY a.album_name
     ORDER BY COUNT(*)
     LIMIT 1);
+
 
 
